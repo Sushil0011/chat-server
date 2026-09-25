@@ -22,10 +22,8 @@ const io = new Server(app.server, {
   },
 });
 
-app.get("/", async () => {
-  return {
-    message: "Chat server is running",
-  };
+app.get("/", async (request, reply) => {
+  return reply.sendFile("index.html");
 });
 
 io.on("connection", (socket) => {
