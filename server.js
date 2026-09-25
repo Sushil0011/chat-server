@@ -1,8 +1,19 @@
 import Fastify from "fastify";
 import { Server } from "socket.io";
+import fastifyStatic from "@fastify/static";
+import path from "path";
+import { fileURLToPath } from "url";
+
 
 const app = Fastify({
   logger: true,
+});
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+await app.register(fastifyStatic, {
+  root: path.join(__dirname, "public"),
 });
 
 const io = new Server(app.server, {

@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@fastify/static": "^10.1.4",
     "fastify": "^5.12.5",
     "socket.io": "^4.8.3"
   },
