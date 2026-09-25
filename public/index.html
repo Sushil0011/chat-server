@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>Socket Chat</title>
+  <title>Socket.IO Chat</title>
 
   <script src="/socket.io/socket.io.js"></script>
 
@@ -16,11 +17,12 @@
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background: #f4f4f5;
+      background: #f3f4f6;
     }
 
-    .chat {
-      width: min(700px, 100%);
+    .app {
+      width: 100%;
+      max-width: 700px;
       height: 100vh;
       margin: auto;
       display: flex;
@@ -28,8 +30,10 @@
       background: white;
     }
 
+    /* Header */
+
     .header {
-      padding: 18px;
+      padding: 18px 20px;
       background: #111827;
       color: white;
     }
@@ -39,10 +43,43 @@
     }
 
     .status {
+      margin-top: 6px;
       font-size: 13px;
-      margin-top: 5px;
       color: #9ca3af;
     }
+
+    .status.connected {
+      color: #22c55e;
+    }
+
+    .status.disconnected {
+      color: #ef4444;
+    }
+
+    /* Controls */
+
+    .controls {
+      padding: 15px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      padding: 9px 13px;
+      border-radius: 7px;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    /* Messages */
 
     .messages {
       flex: 1;
@@ -51,10 +88,10 @@
     }
 
     .message {
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
 
-    .message span {
+    .message-content {
       display: inline-block;
       padding: 10px 14px;
       border-radius: 12px;
@@ -67,60 +104,102 @@
       text-align: right;
     }
 
-    .message.me span {
+    .message.me .message-content {
       background: #2563eb;
       color: white;
     }
 
-    .system {
-      text-align: center;
-      color: #9ca3af;
-      font-size: 13px;
-      margin: 10px;
+    .message.broadcast .message-content {
+      background: #fef3c7;
     }
+
+    .message.global .message-content {
+      background: #dcfce7;
+    }
+
+    .label {
+      display: block;
+      font-size: 11px;
+      margin-bottom: 4px;
+      color: #6b7280;
+    }
+
+    /* Input */
 
     .input-area {
       display: flex;
-      padding: 15px;
-      border-top: 1px solid #ddd;
       gap: 10px;
+      padding: 15px;
+      border-top: 1px solid #e5e7eb;
     }
 
     input {
       flex: 1;
       padding: 12px;
-      border: 1px solid #ddd;
+      border: 1px solid #d1d5db;
       border-radius: 8px;
       outline: none;
+      font-size: 15px;
     }
 
-    button {
-      padding: 12px 20px;
-      border: none;
-      border-radius: 8px;
-      background: #2563eb;
-      color: white;
-      cursor: pointer;
+    input:focus {
+      border-color: #2563eb;
     }
   </style>
 </head>
 
 <body>
 
-  <div class="chat">
+  <div class="app">
+
+    <!-- Header -->
 
     <div class="header">
-      <h2>💬 Socket Chat</h2>
-      <div class="status" id="status">
+      <h2>💬 Socket.IO Chat</h2>
+
+      <div id="status" class="status">
         Connecting...
       </div>
     </div>
 
-    <div class="messages" id="messages"></div>
 
-    <form class="input-area" id="form">
+    <!-- Test buttons -->
+
+    <div class="controls">
+
+      <button id="privateBtn">
+        Private
+      </button>
+
+      <button id="broadcastBtn">
+        Broadcast
+      </button>
+
+      <button id="globalBtn">
+        Global
+      </button>
+
+    </div>
+
+
+    <!-- Messages -->
+
+    <div id="messages" class="messages">
+
+      <div id="emptyMessage" class="label">
+        No messages yet
+      </div>
+
+    </div>
+
+
+    <!-- Input -->
+
+    <form id="form" class="input-area">
+
       <input
         id="input"
+        type="text"
         placeholder="Type a message..."
         autocomplete="off"
       />
@@ -128,61 +207,272 @@
       <button type="submit">
         Send
       </button>
+
     </form>
 
   </div>
 
+
   <script>
+
+    // --------------------------------
+    // Socket connection
+    // --------------------------------
+
     const socket = io();
 
+
+    // --------------------------------
+    // DOM
+    // --------------------------------
+
     const status = document.getElementById("status");
+
     const messages = document.getElementById("messages");
+
     const form = document.getElementById("form");
+
     const input = document.getElementById("input");
 
+    const privateBtn = document.getElementById("privateBtn");
+
+    const broadcastBtn = document.getElementById("broadcastBtn");
+
+    const globalBtn = document.getElementById("globalBtn");
+
+    const emptyMessage = document.getElementById("emptyMessage");
+
+
+    // --------------------------------
+    // Connection
+    // --------------------------------
+
     socket.on("connect", () => {
-      status.textContent = `Connected • ${socket.id}`;
+
+      status.textContent =
+        `Connected • ${socket.id}`;
+
+      status.classList.add("connected");
+
+      status.classList.remove("disconnected");
+
+      console.log("Connected:", socket.id);
+
     });
+
 
     socket.on("disconnect", () => {
+
       status.textContent = "Disconnected";
+
+      status.classList.remove("connected");
+
+      status.classList.add("disconnected");
+
+      console.log("Disconnected");
+
     });
 
+
+    // --------------------------------
+    // Send normal message
+    // --------------------------------
+
     form.addEventListener("submit", (event) => {
+
       event.preventDefault();
 
       const message = input.value.trim();
 
-      if (!message) return;
+      if (!message) {
+        return;
+      }
 
-      addMessage(message, true);
+      socket.emit("message", message);
 
-      socket.emit("broadcast_test", message);
+      addMessage(
+        message,
+        "You",
+        "me"
+      );
 
       input.value = "";
+
       input.focus();
+
     });
+
+
+    // --------------------------------
+    // PRIVATE
+    // --------------------------------
+
+    privateBtn.addEventListener("click", () => {
+
+      const message =
+        input.value.trim() || "Hello private";
+
+      socket.emit(
+        "private_test",
+        message
+      );
+
+    });
+
+
+    socket.on("private_response", (data) => {
+
+      console.log(
+        "Private response:",
+        data
+      );
+
+      addMessage(
+        data.message,
+        "Private response",
+        "private"
+      );
+
+    });
+
+
+    // --------------------------------
+    // BROADCAST
+    // --------------------------------
+
+    broadcastBtn.addEventListener("click", () => {
+
+      const message =
+        input.value.trim() || "Hello everyone except me";
+
+      socket.emit(
+        "broadcast_test",
+        {
+          message
+        }
+      );
+
+      input.value = "";
+
+    });
+
 
     socket.on("broadcast_response", (data) => {
-      addMessage(data.message, false);
+
+      console.log(
+        "Broadcast response:",
+        data
+      );
+
+      addMessage(
+        data.message,
+        `Broadcast from ${data.from}`,
+        "broadcast"
+      );
+
     });
 
-    function addMessage(message, ownMessage) {
-      const div = document.createElement("div");
 
-      div.className = ownMessage
-        ? "message me"
-        : "message";
+    // --------------------------------
+    // GLOBAL
+    // --------------------------------
 
-      const span = document.createElement("span");
+    globalBtn.addEventListener("click", () => {
 
-      span.textContent = message;
+      const message =
+        input.value.trim() || "Hello everyone";
 
-      div.appendChild(span);
-      messages.appendChild(div);
+      socket.emit(
+        "global_test",
+        {
+          message
+        }
+      );
 
-      messages.scrollTop = messages.scrollHeight;
+      input.value = "";
+
+    });
+
+
+    socket.on("global_response", (data) => {
+
+      console.log(
+        "Global response:",
+        data
+      );
+
+      addMessage(
+        data.message,
+        `Global from ${data.from}`,
+        "global"
+      );
+
+    });
+
+
+    // --------------------------------
+    // Render message
+    // --------------------------------
+
+    function addMessage(
+      message,
+      label,
+      type
+    ) {
+
+      // Remove "No messages yet"
+      if (emptyMessage) {
+        emptyMessage.remove();
+      }
+
+
+      const messageDiv =
+        document.createElement("div");
+
+      messageDiv.className =
+        `message ${type}`;
+
+
+      const labelElement =
+        document.createElement("span");
+
+      labelElement.className = "label";
+
+      labelElement.textContent =
+        label;
+
+
+      const content =
+        document.createElement("span");
+
+      content.className =
+        "message-content";
+
+      content.textContent =
+        message;
+
+
+      messageDiv.appendChild(
+        labelElement
+      );
+
+      messageDiv.appendChild(
+        content
+      );
+
+
+      messages.appendChild(
+        messageDiv
+      );
+
+
+      // Scroll to latest message
+
+      messages.scrollTop =
+        messages.scrollHeight;
+
     }
+
   </script>
 
 </body>
